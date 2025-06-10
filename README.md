@@ -17,3 +17,19 @@ python mail_sender.py
 ```
 
 The script will connect to the server and send a basic test email.
+
+## mail_scheduler.py
+
+`mail_scheduler.py` provides a graphical interface to prepare and schedule
+bulk emails. The tool lets you select an Excel file with recipient data,
+choose an HTML template, optionally add a signature and schedule multiple
+send times using an integrated calendar widget.
+
+Run the script with Python 3:
+
+```bash
+python mail_scheduler.py
+```
+
+The application will open a window where you can configure your message and
+export the settings to `config.json`.
