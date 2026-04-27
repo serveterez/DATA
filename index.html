@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Yumurta Yakalama Oyunu</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(180deg, #1f2937, #111827);
+      font-family: Inter, system-ui, sans-serif;
+      color: #f9fafb;
+    }
+    .card {
+      width: min(92vw, 560px);
+      background: rgba(17, 24, 39, 0.9);
+      border: 1px solid #374151;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    canvas {
+      width: 100%;
+      height: auto;
+      border-radius: 12px;
+      border: 1px solid #4b5563;
+      background: linear-gradient(#0ea5e9 0%, #93c5fd 52%, #86efac 52%, #4ade80 100%);
+    }
+    .help {
+      margin-top: 10px;
+      opacity: .85;
+      font-size: .95rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="hud">
+      <span id="score">Skor: 0</span>
+      <span id="lives">Can: 3</span>
+      <span id="best">En İyi: 0</span>
+    </div>
+    <canvas id="game" width="520" height="420" aria-label="Yumurta yakalama oyunu"></canvas>
+    <p class="help">Hareket: ← → (veya A / D). Başlat/Yeniden başlat: Boşluk</p>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const livesEl = document.getElementById('lives');
+    const bestEl = document.getElementById('best');
+
+    const basket = { x: 230, y: 372, w: 90, h: 18, speed: 6 };
+    let eggs = [];
+    let score = 0;
+    let lives = 3;
+    let best = Number(localStorage.getItem('eggCatchBest') || 0);
+    let running = false;
+    let spawnTimer = 0;
+    let spawnInterval = 900;
+    let last = 0;
+    const keys = { left: false, right: false };
+
+    function resetGame() {
+      eggs = [];
+      score = 0;
+      lives = 3;
+      basket.x = (canvas.width - basket.w) / 2;
+      spawnTimer = 0;
+      spawnInterval = 900;
+      running = true;
+      updateHud();
+    }
+
+    function updateHud() {
+      scoreEl.textContent = `Skor: ${score}`;
+      livesEl.textContent = `Can: ${lives}`;
+      bestEl.textContent = `En İyi: ${best}`;
+    }
+
+    function spawnEgg() {
+      eggs.push({
+        x: 16 + Math.random() * (canvas.width - 32),
+        y: -20,
+        r: 10,
+        vy: 1.8 + score * 0.04
+      });
+    }
+
+    function update(dt) {
+      if (keys.left) basket.x -= basket.speed;
+      if (keys.right) basket.x += basket.speed;
+      basket.x = Math.max(0, Math.min(canvas.width - basket.w, basket.x));
+
+      spawnTimer += dt;
+      if (spawnTimer >= spawnInterval) {
+        spawnTimer = 0;
+        spawnEgg();
+        spawnInterval = Math.max(360, 900 - score * 18);
+      }
+
+      for (let i = eggs.length - 1; i >= 0; i--) {
+        const egg = eggs[i];
+        egg.y += egg.vy;
+
+        const inBasketX = egg.x > basket.x && egg.x < basket.x + basket.w;
+        const hitBasket = inBasketX && egg.y + egg.r >= basket.y && egg.y - egg.r <= basket.y + basket.h;
+        if (hitBasket) {
+          eggs.splice(i, 1);
+          score += 1;
+          if (score > best) {
+            best = score;
+            localStorage.setItem('eggCatchBest', String(best));
+          }
+          continue;
+        }
+
+        if (egg.y - egg.r > canvas.height) {
+          eggs.splice(i, 1);
+          lives -= 1;
+          if (lives <= 0) {
+            running = false;
+          }
+        }
+      }
+
+      updateHud();
+    }
+
+    function drawEgg(egg) {
+      ctx.beginPath();
+      ctx.ellipse(egg.x, egg.y, egg.r * 0.9, egg.r * 1.2, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#fef3c7';
+      ctx.fill();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.stroke();
+    }
+
+    function drawBasket() {
+      ctx.fillStyle = '#92400e';
+      ctx.fillRect(basket.x, basket.y, basket.w, basket.h);
+      ctx.strokeStyle = '#fbbf24';
+      ctx.strokeRect(basket.x, basket.y, basket.w, basket.h);
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.font = '16px sans-serif';
+      ctx.fillText('Yumurtaları sepete yakala!', 12, 22);
+
+      eggs.forEach(drawEgg);
+      drawBasket();
+
+      if (!running) {
+        ctx.fillStyle = 'rgba(17,24,39,.7)';
+        ctx.fillRect(70, 150, 380, 110);
+        ctx.fillStyle = '#f9fafb';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillText('Oyun Bitti', 188, 190);
+        ctx.font = '18px sans-serif';
+        ctx.fillText('Yeniden başlamak için Boşluk tuşu', 103, 225);
+      }
+    }
+
+    function loop(ts) {
+      const dt = ts - last;
+      last = ts;
+      if (running) update(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = true;
+      if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') keys.right = true;
+      if (e.code === 'Space' && !running) resetGame();
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = false;
+      if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') keys.right = false;
+    });
+
+    updateHud();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
